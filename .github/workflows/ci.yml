@@ -14,7 +14,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: strapi-app
+        working-directory: my-strapi-app
 
     env:
       AWS_REGION: us-east-1
