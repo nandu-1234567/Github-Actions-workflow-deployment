@@ -1,0 +1,20 @@
+# Node
+node_modules
+npm-debug.log
+
+# Strapi
+app/.cache
+app/.tmp
+app/build
+
+# Environment
+.env
+app/.env
+
+# OS
+.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
