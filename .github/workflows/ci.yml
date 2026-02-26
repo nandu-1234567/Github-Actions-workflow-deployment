@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - 'strapi-app/**'
+      - 'my-strapi-app/**'
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: strapi-repo-jayani
+      ECR_REPOSITORY: strapi-repo-nandini
 
     steps:
       - name: Checkout
