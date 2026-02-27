@@ -113,17 +113,29 @@ jobs:
               }
             }' > revision.json
 
-      - name: Trigger CodeDeploy Deployment and Monitor
-        run: |
-          DEPLOY_ID=$(aws deploy create-deployment \
-            --application-name $CODEDEPLOY_APP \
-            --deployment-group-name $DEPLOYMENT_GROUP \
-            --deployment-config-name CodeDeployDefault.ECSCanary10Percent5Minutes \
-            --revision file://revision.json \
-            --query deploymentId \
-            --output text)
+     
+       - name: Trigger CodeDeploy Deployment
+          run: |
+           DEPLOY_ID=$(aws deploy create-deployment \
+             --application-name $CODEDEPLOY_APP \
+             --deployment-group-name $DEPLOYMENT_GROUP \
+             --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
+             --revision file://revision.json \
+             --query deploymentId \
+             --output text)
 
-          echo "Deployment ID: $DEPLOY_ID"
+            echo "Deployment ID: $DEPLOY_ID"
 
-          # Wait until deployment finishes
-          aws deploy wait deployment-successful --deployment-id $DEPLOY_ID
+       - name: Monitor Deployment Progress (fast output)
+         run: |
+           while true; do
+             STATUS=$(aws deploy get-deployment \
+                --deployment-id $DEPLOY_ID \
+                --query "deploymentInfo.status" \
+                --output text)
+              echo "Current Deployment Status: $STATUS"
+              if [[ "$STATUS" == "Succeeded" ]] || [[ "$STATUS" == "Failed" ]]; then
+                  break
+              fi
+               sleep 15
+              done
