@@ -1,0 +1,100 @@
+name: CD - ECS Blue Green Deployment
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["CI - Build and Push Image"]
+    types:
+      - completed
+
+env:
+  AWS_REGION: us-east-1
+  CODEDEPLOY_APP: strapi-codedeploy-app-nandini
+  DEPLOYMENT_GROUP: strapi-dg-nandini
+  CLUSTER_NAME: strapi-cluster-nandini
+  SERVICE_NAME: strapi-service-nandini
+  TASK_FAMILY: strapi-task-nandini
+  CONTAINER_NAME: strapi
+  CONTAINER_PORT: 1337
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ---------------------------
+      # 1. Checkout code
+      # ---------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------------------
+      # 2. Configure AWS credentials
+      # ---------------------------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ---------------------------
+      # 3. Get latest task definition
+      # ---------------------------
+      - name: Get latest task definition ARN
+        id: taskdef
+        run: |
+          TASK_DEF_ARN=$(aws ecs describe-task-definition \
+            --task-definition $TASK_FAMILY \
+            --query "taskDefinition.taskDefinitionArn" \
+            --output text)
+
+          echo "TASK_DEF_ARN=$TASK_DEF_ARN" >> $GITHUB_ENV
+          echo "Using task definition: $TASK_DEF_ARN"
+
+      # ---------------------------
+      # 4. Create AppSpec revision.json
+      # ---------------------------
+      - name: Create AppSpec revision file
+        run: |
+          cat > revision.json << EOF
+          {
+            "revisionType": "AppSpecContent",
+            "appSpecContent": {
+              "content": "version: 0.0\nResources:\n  - TargetService:\n      Type: AWS::ECS::Service\n      Properties:\n        TaskDefinition: ${TASK_DEF_ARN}\n        LoadBalancerInfo:\n          ContainerName: ${CONTAINER_NAME}\n          ContainerPort: ${CONTAINER_PORT}\n"
+            }
+          }
+          EOF
+
+          cat revision.json
+
+      # ---------------------------
+      # 5. Create CodeDeploy deployment
+      # ---------------------------
+      - name: Create CodeDeploy deployment
+        id: deploy
+        run: |
+          DEPLOY_ID=$(aws deploy create-deployment \
+            --application-name "$CODEDEPLOY_APP" \
+            --deployment-group-name "$DEPLOYMENT_GROUP" \
+            --deployment-config-name CodeDeployDefault.ECSCanary10Percent5Minutes \
+            --revision file://revision.json \
+            --query deploymentId \
+            --output text)
+
+          echo "Deployment ID: $DEPLOY_ID"
+          echo "DEPLOY_ID=$DEPLOY_ID" >> $GITHUB_ENV
+
+      # ---------------------------
+      # 6. Wait for deployment to succeed
+      # ---------------------------
+      - name: Wait for deployment to complete
+        run: |
+          aws deploy wait deployment-successful \
+            --deployment-id "$DEPLOY_ID"
+
+      # ---------------------------
+      # 7. Success message
+      # ---------------------------
+      - name: Deployment successful
+        run: echo "✅ ECS Blue/Green deployment completed successfully"
