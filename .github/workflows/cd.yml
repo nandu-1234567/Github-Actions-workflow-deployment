@@ -115,7 +115,7 @@ jobs:
 
      
        - name: Trigger CodeDeploy Deployment
-          run: |
+         run: |
            DEPLOY_ID=$(aws deploy create-deployment \
              --application-name $CODEDEPLOY_APP \
              --deployment-group-name $DEPLOYMENT_GROUP \
