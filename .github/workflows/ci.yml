@@ -18,8 +18,7 @@ jobs:
 
     env:
       AWS_REGION: us-east-1
-      ECR_REPOSITORY: nandini-project-repo-nandini
-
+      ECR_REPOSITORY: strapi-repo-nandini
     steps:
       - name: Checkout
         uses: actions/checkout@v3
