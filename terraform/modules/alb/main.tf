@@ -47,7 +47,7 @@ resource "aws_lb_target_group" "green" {
 # HTTP Listener (default → Blue)
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
-  port              = 80
+  port              = 8080
   protocol          = "HTTP"
 
   default_action {
