@@ -15,7 +15,7 @@ module "alb" {
 module "ecr" {
   source       = "./modules/ecr"
   project_name = var.project_name
-  ecr_repository_url = module.ecr.repository_url
+ 
 }
 
 module "ecs" {
