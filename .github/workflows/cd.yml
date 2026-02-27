@@ -22,9 +22,6 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # -----------------------------
-      # Read Terraform Remote State
-      # -----------------------------
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -41,28 +38,27 @@ jobs:
           echo "CODEDEPLOY_APP=$(terraform output -raw codedeploy_app_name)" >> $GITHUB_ENV
           echo "DEPLOYMENT_GROUP=$(terraform output -raw deployment_group_name)" >> $GITHUB_ENV
           echo "ECR_REPOSITORY=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
-      
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-        
+
       - name: Get Current Task Definition
         run: |
           aws ecs describe-task-definition \
             --task-definition $TASK_FAMILY \
-            --query "taskDefinition" \
-            > taskdef.json
+            --query "taskDefinition" > taskdef.json
 
       - name: Update Image in Task Definition
         run: |
           jq --arg IMAGE "$ECR_REPOSITORY:${{ github.sha }}" \
             '.containerDefinitions[0].image = $IMAGE
-            | del(.taskDefinitionArn,
-                  .revision,
-                  .status,
-                  .requiresAttributes,
-                  .compatibilities,
-                  .registeredAt,
-                  .registeredBy)' \
+             | del(.taskDefinitionArn,
+                   .revision,
+                   .status,
+                   .requiresAttributes,
+                   .compatibilities,
+                   .registeredAt,
+                   .registeredBy)' \
             taskdef.json > new-taskdef.json
 
       - name: Register Updated Task Definition
@@ -71,12 +67,8 @@ jobs:
             --cli-input-json file://new-taskdef.json \
             --query "taskDefinition.taskDefinitionArn" \
             --output text)
-
           echo "NEW_TASK_DEF=$NEW_TASK_DEF" >> $GITHUB_ENV
 
-      # -----------------------------
-      # Create AppSpec
-      # -----------------------------
       - name: Create AppSpec
         run: |
           cat <<EOF > appspec.json
@@ -99,43 +91,36 @@ jobs:
           }
           EOF
 
-      # -----------------------------
-      # Trigger CodeDeploy
-      # -----------------------------
-      - name: Create revision.json safely
+      - name: Create revision.json
         run: |
           jq -n \
             --arg content "$(cat appspec.json)" \
             '{
               revisionType: "AppSpecContent",
-              appSpecContent: {
-                content: $content
-              }
+              appSpecContent: { content: $content }
             }' > revision.json
 
-     
-       - name: Trigger CodeDeploy Deployment
-         run: |
-           DEPLOY_ID=$(aws deploy create-deployment \
-             --application-name $CODEDEPLOY_APP \
-             --deployment-group-name $DEPLOYMENT_GROUP \
-             --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
-             --revision file://revision.json \
-             --query deploymentId \
-             --output text)
+      - name: Trigger CodeDeploy (Fast Output)
+        run: |
+          DEPLOY_ID=$(aws deploy create-deployment \
+            --application-name $CODEDEPLOY_APP \
+            --deployment-group-name $DEPLOYMENT_GROUP \
+            --deployment-config-name CodeDeployDefault.ECSAllAtOnce \
+            --revision file://revision.json \
+            --query deploymentId \
+            --output text)
 
-            echo "Deployment ID: $DEPLOY_ID"
+          echo "Deployment ID: $DEPLOY_ID"
 
-       - name: Monitor Deployment Progress (fast output)
-         run: |
-           while true; do
-             STATUS=$(aws deploy get-deployment \
-                --deployment-id $DEPLOY_ID \
-                --query "deploymentInfo.status" \
-                --output text)
-              echo "Current Deployment Status: $STATUS"
-              if [[ "$STATUS" == "Succeeded" ]] || [[ "$STATUS" == "Failed" ]]; then
-                  break
-              fi
-               sleep 15
-              done
+          while true; do
+            STATUS=$(aws deploy get-deployment \
+              --deployment-id $DEPLOY_ID \
+              --query "deploymentInfo.status" \
+              --output text)
+            echo "Deployment Status: $STATUS"
+
+            if [[ "$STATUS" == "Succeeded" || "$STATUS" == "Failed" ]]; then
+              exit 0
+            fi
+            sleep 15
+          done
